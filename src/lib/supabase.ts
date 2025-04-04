@@ -1,15 +1,19 @@
-
 import { createClient } from '@supabase/supabase-js';
 
-// These environment variables must be set in your Supabase project settings
+// Load environment variables from import.meta.env (for Vite)
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Validate environment variables
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables. Please check your project settings.');
+  console.warn('Supabase environment variables are missing. Falling back to database.env values.');
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+// Create Supabase client with environment variables or fallback to database.env values
+export const supabase = createClient(
+  supabaseUrl || 'https://oxsxhekuogxemxsdbwxw.supabase.co', 
+  supabaseAnonKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im94c3hoZWt1b2d4ZW14c2Rid3h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM3Nzg2NjcsImV4cCI6MjA1OTM1NDY2N30.TtRvF8cQ3ImhaLEcyn_LGxc6KZWaSKDOegxfrrbElso'
+);
 
 // Type definition for PDF extraction records
 export interface PdfExtraction {
@@ -97,5 +101,26 @@ export async function setupCleanupJob() {
     }
   } catch (error) {
     console.error('Error in setupCleanupJob:', error);
+  }
+}
+
+/**
+ * Tests the Supabase connection
+ * @returns True if the connection is successful, false otherwise
+ */
+export async function testSupabaseConnection(): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from('pdf_extractions').select('id').limit(1);
+    
+    if (error) {
+      console.error('Supabase connection test failed:', error);
+      return false;
+    }
+    
+    console.log('Supabase connection successful!');
+    return true;
+  } catch (error) {
+    console.error('Error testing Supabase connection:', error);
+    return false;
   }
 }

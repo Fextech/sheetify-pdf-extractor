@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "@/components/ui/use-toast";
 import FileUpload from "@/components/FileUpload";
 import ProcessingStatus from "@/components/ProcessingStatus";
@@ -8,7 +7,7 @@ import Header from "@/components/Header";
 import Instructions from "@/components/Instructions";
 import { generateCsvDownload } from "@/lib/googleSheetsUtils";
 import { extractTextFromPdf, groupPagesIntoCells } from "@/lib/pdfUtils";
-import { savePdfExtraction, setupCleanupJob } from "@/lib/supabase";
+import { savePdfExtraction, setupCleanupJob, testSupabaseConnection } from "@/lib/supabase";
 
 const Index = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -18,11 +17,32 @@ const Index = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [processedCellTexts, setProcessedCellTexts] = useState<string[]>([]);
   const [extractionId, setExtractionId] = useState<string | null>(null);
+  const [dbConnected, setDbConnected] = useState<boolean | null>(null);
 
-  // Initialize cleanup job for expired extractions
-  useState(() => {
+  useEffect(() => {
     setupCleanupJob();
-  });
+    
+    const checkConnection = async () => {
+      const isConnected = await testSupabaseConnection();
+      setDbConnected(isConnected);
+      
+      if (isConnected) {
+        toast({
+          title: "Database Connected",
+          description: "Successfully connected to Supabase database",
+          variant: "default"
+        });
+      } else {
+        toast({
+          title: "Database Connection Issue",
+          description: "Could not connect to the Supabase database. Check your environment variables.",
+          variant: "destructive"
+        });
+      }
+    };
+    
+    checkConnection();
+  }, []);
 
   const handleFileSelected = (selectedFile: File) => {
     if (!selectedFile.name.toLowerCase().endsWith('.pdf')) {
@@ -34,14 +54,11 @@ const Index = () => {
       return;
     }
 
-    // Create a preview URL for the PDF
     const url = URL.createObjectURL(selectedFile);
     setPreviewUrl(url);
     setFile(selectedFile);
     
-    // Mock function to estimate page count (would be replaced with actual PDF parsing)
     setTimeout(() => {
-      // This would be replaced with actual PDF parsing to get the page count
       const estimatedPages = Math.floor(selectedFile.size / 3000);
       setTotalPages(estimatedPages);
     }, 500);
@@ -54,17 +71,14 @@ const Index = () => {
     setProgress(0);
     
     try {
-      // Extract text from PDF pages
       const pageTexts = await extractTextFromPdf(file, (progress) => {
-        setProgress(progress / 2); // First half of the progress is text extraction
+        setProgress(progress / 2);
       });
       
-      // Group the pages into cells (3 pages per cell)
       const cellTexts = groupPagesIntoCells(pageTexts);
       setProcessedCellTexts(cellTexts);
       
-      // Save to Supabase
-      setProgress(75); // Update progress to show we're saving to database
+      setProgress(75);
       
       const savedExtraction = await savePdfExtraction(file.name, pageTexts);
       if (savedExtraction?.id) {
@@ -106,10 +120,8 @@ const Index = () => {
     });
     
     try {
-      // Generate CSV and initiate download
       const downloadUrl = await generateCsvDownload(processedCellTexts, file.name);
       
-      // Create an anchor element and trigger download
       const link = document.createElement('a');
       link.href = downloadUrl;
       link.download = `${file.name.replace('.pdf', '')}_spreadsheet.csv`;
@@ -117,7 +129,6 @@ const Index = () => {
       link.click();
       document.body.removeChild(link);
       
-      // Clean up the object URL
       setTimeout(() => URL.revokeObjectURL(downloadUrl), 100);
       
       toast({
@@ -143,6 +154,12 @@ const Index = () => {
           <div className="md:col-span-7">
             <div className="bg-white p-6 rounded-lg shadow-sm">
               <h2 className="text-2xl font-semibold mb-4">Upload PDF</h2>
+              
+              {dbConnected === false && (
+                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-300 rounded text-yellow-800 text-sm">
+                  ⚠️ Database connection issue detected. Your extractions won't be saved. Check console for details.
+                </div>
+              )}
               
               {!isProcessing ? (
                 <>

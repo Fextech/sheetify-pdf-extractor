@@ -1,5 +1,5 @@
 
-// This is a mock utility file. In a real application, you would use a PDF parsing library
+// For a real implementation, you would use a PDF parsing library
 // like pdf.js or a backend service to extract text from PDFs.
 
 /**

@@ -6,6 +6,8 @@ import ProcessingStatus from "@/components/ProcessingStatus";
 import PdfPreview from "@/components/PdfPreview";
 import Header from "@/components/Header";
 import Instructions from "@/components/Instructions";
+import { generateCsvDownload } from "@/lib/googleSheetsUtils";
+import { extractTextFromPdf, groupPagesIntoCells } from "@/lib/pdfUtils";
 
 const Index = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -13,6 +15,7 @@ const Index = () => {
   const [progress, setProgress] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [processedCellTexts, setProcessedCellTexts] = useState<string[]>([]);
 
   const handleFileSelected = (selectedFile: File) => {
     if (!selectedFile.name.toLowerCase().endsWith('.pdf')) {
@@ -37,47 +40,93 @@ const Index = () => {
     }, 500);
   };
 
-  const startProcessing = () => {
+  const startProcessing = async () => {
     if (!file) return;
     
     setIsProcessing(true);
     setProgress(0);
     
-    // Simulate processing
-    const totalCells = Math.ceil(totalPages / 3);
-    let currentProgress = 0;
-    
-    const interval = setInterval(() => {
-      currentProgress += 1;
-      const percentage = Math.min((currentProgress / totalCells) * 100, 100);
-      setProgress(percentage);
+    try {
+      // Extract text from PDF pages
+      const pageTexts = await extractTextFromPdf(file, (progress) => {
+        setProgress(progress / 2); // First half of the progress is text extraction
+      });
       
-      if (percentage >= 100) {
-        clearInterval(interval);
-        setTimeout(() => {
-          setIsProcessing(false);
-          toast({
-            title: "Processing complete",
-            description: `Created a spreadsheet with ${totalCells} cells containing all ${totalPages} pages`,
-          });
-        }, 1000);
-      }
-    }, 200);
+      // Group the pages into cells (3 pages per cell)
+      const cellTexts = groupPagesIntoCells(pageTexts);
+      setProcessedCellTexts(cellTexts);
+      
+      // Simulate the second half of the processing
+      let currentProgress = 50;
+      const interval = setInterval(() => {
+        currentProgress += 5;
+        const percentage = Math.min(currentProgress, 100);
+        setProgress(percentage);
+        
+        if (percentage >= 100) {
+          clearInterval(interval);
+          setTimeout(() => {
+            setIsProcessing(false);
+            toast({
+              title: "Processing complete",
+              description: `Created a spreadsheet with ${cellTexts.length} cells containing all ${pageTexts.length} pages`,
+            });
+          }, 1000);
+        }
+      }, 200);
+    } catch (error) {
+      console.error("Error processing PDF:", error);
+      setIsProcessing(false);
+      toast({
+        variant: "destructive",
+        title: "Processing failed",
+        description: "There was an error processing your PDF.",
+      });
+    }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
+    if (!file || processedCellTexts.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Nothing to download",
+        description: "Please process a PDF file first",
+      });
+      return;
+    }
+
     toast({
       title: "Download started",
       description: "Your spreadsheet is being prepared for download",
     });
     
-    // In a real application, this would trigger the download of the actual Google Sheet
-    setTimeout(() => {
+    try {
+      // Generate CSV and initiate download
+      const downloadUrl = await generateCsvDownload(processedCellTexts, file.name);
+      
+      // Create an anchor element and trigger download
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `${file.name.replace('.pdf', '')}_spreadsheet.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up the object URL
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 100);
+      
       toast({
         title: "Download complete",
         description: "Your spreadsheet has been downloaded successfully",
       });
-    }, 2000);
+    } catch (error) {
+      console.error("Download error:", error);
+      toast({
+        variant: "destructive",
+        title: "Download failed",
+        description: "There was an error preparing your download.",
+      });
+    }
   };
 
   return (

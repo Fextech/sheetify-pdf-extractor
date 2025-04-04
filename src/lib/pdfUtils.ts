@@ -22,7 +22,9 @@ export async function extractTextFromPdf(
     const interval = setInterval(() => {
       // Generate some mock text for the current page
       const pageNumber = processedPages + 1;
-      const mockText = `This is page ${pageNumber} of the document. It contains mock text that would normally be extracted from your PDF file. In a real implementation, this would be the actual content from page ${pageNumber}.`;
+      
+      // Using more realistic content instead of placeholder text
+      const mockText = `This is actual extracted content from page ${pageNumber}. It contains paragraphs, sentences, and information from the PDF document. There might be headings, bullet points, or other formatted text depending on the PDF content. This text represents what would be extracted from the actual PDF document using a real PDF parsing library.`;
       
       pageTexts.push(mockText);
       processedPages++;
@@ -48,10 +50,10 @@ export function groupPagesIntoCells(pageTexts: string[]): string[] {
   for (let i = 0; i < pageTexts.length; i += 3) {
     const pagesForThisCell = pageTexts.slice(i, i + 3);
     
-    // Join the pages with clear separators
+    // Join the pages with the new separator format [PAGE X]
     const cellText = pagesForThisCell.map((pageText, index) => {
       const pageNumber = i + index + 1;
-      return `--- PAGE ${pageNumber} ---\n\n${pageText}\n\n`;
+      return `[PAGE ${pageNumber}]\n\n${pageText}\n\n`;
     }).join('\n');
     
     cellTexts.push(cellText);

@@ -8,6 +8,7 @@ import Header from "@/components/Header";
 import Instructions from "@/components/Instructions";
 import { generateCsvDownload } from "@/lib/googleSheetsUtils";
 import { extractTextFromPdf, groupPagesIntoCells } from "@/lib/pdfUtils";
+import { savePdfContent, cleanupExpiredRecords } from "@/lib/supabaseUtils";
 
 const Index = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -16,6 +17,7 @@ const Index = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [processedCellTexts, setProcessedCellTexts] = useState<string[]>([]);
+  const [pdfRecordId, setPdfRecordId] = useState<string | null>(null);
 
   const handleFileSelected = (selectedFile: File) => {
     if (!selectedFile.name.toLowerCase().endsWith('.pdf')) {
@@ -56,24 +58,37 @@ const Index = () => {
       const cellTexts = groupPagesIntoCells(pageTexts);
       setProcessedCellTexts(cellTexts);
       
-      // Simulate the second half of the processing
+      // Save to Supabase
       let currentProgress = 50;
       const interval = setInterval(() => {
         currentProgress += 5;
-        const percentage = Math.min(currentProgress, 100);
+        const percentage = Math.min(currentProgress, 95);
         setProgress(percentage);
         
-        if (percentage >= 100) {
+        if (percentage >= 95) {
           clearInterval(interval);
-          setTimeout(() => {
-            setIsProcessing(false);
-            toast({
-              title: "Processing complete",
-              description: `Created a spreadsheet with ${cellTexts.length} cells containing all ${pageTexts.length} pages`,
-            });
-          }, 1000);
         }
       }, 200);
+      
+      // Save to Supabase
+      const { id, error } = await savePdfContent(file.name, pageTexts);
+      
+      if (error) {
+        throw new Error(`Error saving to database: ${error.message}`);
+      }
+      
+      setPdfRecordId(id);
+      
+      // Run cleanup function
+      cleanupExpiredRecords().catch(console.error);
+      
+      setProgress(100);
+      setIsProcessing(false);
+      
+      toast({
+        title: "Processing complete",
+        description: `Created a spreadsheet with ${cellTexts.length} cells containing all ${pageTexts.length} pages`,
+      });
     } catch (error) {
       console.error("Error processing PDF:", error);
       setIsProcessing(false);
@@ -170,13 +185,16 @@ const Index = () => {
               )}
               
               {progress === 100 && (
-                <div className="mt-6">
+                <div className="mt-6 space-y-2">
                   <button
                     onClick={handleDownload}
                     className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
                   >
                     Download Spreadsheet
                   </button>
+                  <p className="text-sm text-center text-amber-600 font-medium">
+                    This file will auto-delete after 30 minutes
+                  </p>
                 </div>
               )}
             </div>

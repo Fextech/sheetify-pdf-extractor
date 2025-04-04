@@ -1,9 +1,12 @@
 
-// This is a mock utility file. In a real application, you would use a PDF parsing library
-// like pdf.js or a backend service to extract text from PDFs.
+import * as pdfjs from 'pdfjs-dist';
+
+// Initialize PDF.js worker
+const pdfjsWorker = await import('pdfjs-dist/build/pdf.worker.entry');
+pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 /**
- * Extracts text from a PDF file
+ * Extracts text from a PDF file using PDF.js
  * @param file The PDF file to extract text from
  * @param progressCallback A callback function to report progress
  * @returns A promise that resolves to an array of strings, each containing text from one page
@@ -12,31 +15,39 @@ export async function extractTextFromPdf(
   file: File,
   progressCallback: (progress: number) => void
 ): Promise<string[]> {
-  // This is a mock implementation. In a real application, you would use a PDF parsing library.
-  return new Promise((resolve) => {
-    // Simulate text extraction with progress updates
-    const totalPages = Math.floor(file.size / 3000); // Mock estimation
-    const pageTexts: string[] = [];
-    
-    let processedPages = 0;
-    const interval = setInterval(() => {
-      // Generate some mock text for the current page
-      const pageNumber = processedPages + 1;
+  // Convert file to ArrayBuffer
+  const arrayBuffer = await file.arrayBuffer();
+  
+  // Load the PDF document
+  const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+  const pdfDocument = await loadingTask.promise;
+  
+  const totalPages = pdfDocument.numPages;
+  const pageTexts: string[] = [];
+  
+  // Extract text from each page
+  for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+    try {
+      // Get the page
+      const page = await pdfDocument.getPage(pageNum);
       
-      // Using more realistic content instead of placeholder text
-      const mockText = `This is actual extracted content from page ${pageNumber}. It contains paragraphs, sentences, and information from the PDF document. There might be headings, bullet points, or other formatted text depending on the PDF content. This text represents what would be extracted from the actual PDF document using a real PDF parsing library.`;
+      // Extract text content
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
       
-      pageTexts.push(mockText);
-      processedPages++;
+      pageTexts.push(pageText);
       
-      progressCallback((processedPages / totalPages) * 100);
-      
-      if (processedPages >= totalPages) {
-        clearInterval(interval);
-        resolve(pageTexts);
-      }
-    }, 100);
-  });
+      // Update progress
+      progressCallback((pageNum / totalPages) * 100);
+    } catch (error) {
+      console.error(`Error extracting text from page ${pageNum}:`, error);
+      pageTexts.push(`[Error extracting text from page ${pageNum}]`);
+    }
+  }
+  
+  return pageTexts;
 }
 
 /**

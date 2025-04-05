@@ -1,16 +1,12 @@
+
 import { useState, useEffect } from "react";
 import { toast } from "@/components/ui/use-toast";
-import FileUpload from "@/components/FileUpload";
-import ProcessingStatus from "@/components/ProcessingStatus";
+import PDFUploadSection from "@/components/PDFUploadSection";
+import PDFProcessingSection from "@/components/PDFProcessingSection";
+import Instructions from "@/components/Instructions";
 import PdfPreview from "@/components/PdfPreview";
 import Header from "@/components/Header";
-import Instructions from "@/components/Instructions";
-import { generateCsvDownload } from "@/lib/googleSheetsUtils";
-import { extractTextFromPdf, groupPagesIntoCells } from "@/lib/pdfUtils";
-import { savePdfExtraction, setupCleanupJob, testSupabaseConnection } from "@/lib/supabase";
-import * as pdfjsLib from 'pdfjs-dist';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+import { setupCleanupJob, testSupabaseConnection } from "@/lib/supabase";
 
 const Index = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -47,123 +43,6 @@ const Index = () => {
     checkConnection();
   }, []);
 
-  const handleFileSelected = async (selectedFile: File) => {
-    if (!selectedFile.name.toLowerCase().endsWith('.pdf')) {
-      toast({
-        variant: "destructive",
-        title: "Invalid file format",
-        description: "Please upload a PDF file",
-      });
-      return;
-    }
-
-    const url = URL.createObjectURL(selectedFile);
-    setPreviewUrl(url);
-    setFile(selectedFile);
-    
-    try {
-      const arrayBuffer = await selectedFile.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      const numPages = pdf.numPages;
-      
-      setTotalPages(numPages);
-      toast({
-        title: "PDF Loaded",
-        description: `PDF has ${numPages} pages`,
-      });
-    } catch (error) {
-      console.error("Error getting PDF page count:", error);
-      toast({
-        variant: "destructive",
-        title: "Error analyzing PDF",
-        description: "Could not determine page count",
-      });
-      const estimatedPages = Math.floor(selectedFile.size / 3000);
-      setTotalPages(estimatedPages);
-    }
-  };
-
-  const startProcessing = async () => {
-    if (!file) return;
-    
-    setIsProcessing(true);
-    setProgress(0);
-    
-    try {
-      const pageTexts = await extractTextFromPdf(file, (progress) => {
-        setProgress(progress / 2);
-      });
-      
-      const cellTexts = groupPagesIntoCells(pageTexts);
-      setProcessedCellTexts(cellTexts);
-      
-      setProgress(75);
-      
-      const savedExtraction = await savePdfExtraction(file.name, pageTexts);
-      if (savedExtraction?.id) {
-        setExtractionId(savedExtraction.id);
-      }
-      
-      setProgress(100);
-      setTimeout(() => {
-        setIsProcessing(false);
-        toast({
-          title: "Processing complete",
-          description: `Created a spreadsheet with ${cellTexts.length} cells containing all ${pageTexts.length} pages`,
-        });
-      }, 1000);
-    } catch (error) {
-      console.error("Error processing PDF:", error);
-      setIsProcessing(false);
-      toast({
-        variant: "destructive",
-        title: "Processing failed",
-        description: "There was an error processing your PDF.",
-      });
-    }
-  };
-
-  const handleDownload = async () => {
-    if (!file || processedCellTexts.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "Nothing to download",
-        description: "Please process a PDF file first",
-      });
-      return;
-    }
-
-    toast({
-      title: "Download started",
-      description: "Your spreadsheet is being prepared for download",
-    });
-    
-    try {
-      const downloadUrl = await generateCsvDownload(processedCellTexts, file.name);
-      
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = `${file.name.replace('.pdf', '')}_spreadsheet.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      setTimeout(() => URL.revokeObjectURL(downloadUrl), 100);
-      
-      toast({
-        title: "Download complete",
-        description: "Your spreadsheet has been downloaded successfully",
-      });
-    } catch (error) {
-      console.error("Download error:", error);
-      toast({
-        variant: "destructive",
-        title: "Download failed",
-        description: "There was an error preparing your download.",
-      });
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
@@ -181,47 +60,25 @@ const Index = () => {
               )}
               
               {!isProcessing ? (
-                <>
-                  <FileUpload 
-                    onFileSelected={handleFileSelected} 
-                    isProcessing={isProcessing}
-                  />
-                  
-                  {file && (
-                    <div className="mt-6">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-700">{file.name}</span>
-                        <span className="text-sm text-gray-500">
-                          {totalPages > 0 ? `${totalPages} pages (${Math.ceil(totalPages / 3)} cells)` : "Analyzing..."}
-                        </span>
-                      </div>
-                      
-                      <button
-                        onClick={startProcessing}
-                        disabled={isProcessing || totalPages === 0}
-                        className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        Start Processing
-                      </button>
-                    </div>
-                  )}
-                </>
+                <PDFUploadSection 
+                  file={file}
+                  totalPages={totalPages}
+                  isProcessing={isProcessing}
+                  setFile={setFile}
+                  setTotalPages={setTotalPages}
+                  setPreviewUrl={setPreviewUrl}
+                  setIsProcessing={setIsProcessing}
+                  setProgress={setProgress}
+                  setProcessedCellTexts={setProcessedCellTexts}
+                  setExtractionId={setExtractionId}
+                />
               ) : (
-                <ProcessingStatus progress={progress} totalPages={totalPages} />
-              )}
-              
-              {progress === 100 && (
-                <div className="mt-6">
-                  <button
-                    onClick={handleDownload}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
-                  >
-                    Download Spreadsheet
-                  </button>
-                  <p className="text-center text-sm text-gray-500 mt-2">
-                    This file will auto-delete after 30 minutes
-                  </p>
-                </div>
+                <PDFProcessingSection 
+                  progress={progress}
+                  totalPages={totalPages}
+                  file={file}
+                  processedCellTexts={processedCellTexts}
+                />
               )}
             </div>
             

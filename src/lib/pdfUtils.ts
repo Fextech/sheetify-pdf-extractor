@@ -17,7 +17,12 @@ export async function extractTextFromPdf(
     const arrayBuffer = await file.arrayBuffer();
     
     // Create loading task with better error handling
-    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const loadingTask = pdfjsLib.getDocument({
+      data: arrayBuffer,
+      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/cmaps/',
+      cMapPacked: true,
+      standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/standard_fonts/',
+    });
     
     // Add progress callback to the loading task
     loadingTask.onProgress = (progress) => {

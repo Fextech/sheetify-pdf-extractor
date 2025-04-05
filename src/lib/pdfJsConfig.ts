@@ -1,13 +1,8 @@
 
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Use a local worker path instead of CDN which is causing issues
-const pdfWorkerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.js',
-  import.meta.url
-).toString();
-
-// Initialize pdf.js workerSrc with local worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
+// Set the worker path to use the bundled worker from node_modules
+// This resolves the issue with the worker not being found
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 export default pdfjsLib;

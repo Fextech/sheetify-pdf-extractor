@@ -46,13 +46,19 @@ const PDFUploadSection = ({
     setFile(selectedFile);
     
     try {
-      // Load the PDF document using the updated pdf.js configuration
+      console.log("Loading PDF to get page count...");
+      // Use the same PDF.js configuration as in extractTextFromPdf
       const arrayBuffer = await selectedFile.arrayBuffer();
-      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const loadingTask = pdfjsLib.getDocument({
+        data: arrayBuffer,
+        cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/cmaps/',
+        cMapPacked: true,
+        standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/standard_fonts/',
+      });
       
-      // Add error handling for the loading task
+      // Add progress callback
       loadingTask.onProgress = (progress) => {
-        console.log(`Loading PDF: ${progress.loaded}/${progress.total}`);
+        console.log(`Loading PDF: ${Math.round((progress.loaded / (progress.total || 1)) * 100)}%`);
       };
       
       const pdf = await loadingTask.promise;

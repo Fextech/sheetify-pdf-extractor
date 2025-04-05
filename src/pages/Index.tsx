@@ -8,6 +8,9 @@ import Instructions from "@/components/Instructions";
 import { generateCsvDownload } from "@/lib/googleSheetsUtils";
 import { extractTextFromPdf, groupPagesIntoCells } from "@/lib/pdfUtils";
 import { savePdfExtraction, setupCleanupJob, testSupabaseConnection } from "@/lib/supabase";
+import * as pdfjsLib from 'pdfjs-dist';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 const Index = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -44,7 +47,7 @@ const Index = () => {
     checkConnection();
   }, []);
 
-  const handleFileSelected = (selectedFile: File) => {
+  const handleFileSelected = async (selectedFile: File) => {
     if (!selectedFile.name.toLowerCase().endsWith('.pdf')) {
       toast({
         variant: "destructive",
@@ -58,10 +61,26 @@ const Index = () => {
     setPreviewUrl(url);
     setFile(selectedFile);
     
-    setTimeout(() => {
+    try {
+      const arrayBuffer = await selectedFile.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const numPages = pdf.numPages;
+      
+      setTotalPages(numPages);
+      toast({
+        title: "PDF Loaded",
+        description: `PDF has ${numPages} pages`,
+      });
+    } catch (error) {
+      console.error("Error getting PDF page count:", error);
+      toast({
+        variant: "destructive",
+        title: "Error analyzing PDF",
+        description: "Could not determine page count",
+      });
       const estimatedPages = Math.floor(selectedFile.size / 3000);
       setTotalPages(estimatedPages);
-    }, 500);
+    }
   };
 
   const startProcessing = async () => {

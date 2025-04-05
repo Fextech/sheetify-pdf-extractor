@@ -1,9 +1,11 @@
 
-// For a real implementation, you would use a PDF parsing library
-// like pdf.js or a backend service to extract text from PDFs.
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Initialize pdf.js workerSrc
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 /**
- * Extracts text from a PDF file
+ * Extracts text from a PDF file using pdf.js
  * @param file The PDF file to extract text from
  * @param progressCallback A callback function to report progress
  * @returns A promise that resolves to an array of strings, each containing text from one page
@@ -12,31 +14,42 @@ export async function extractTextFromPdf(
   file: File,
   progressCallback: (progress: number) => void
 ): Promise<string[]> {
-  // This is a mock implementation. In a real application, you would use a PDF parsing library.
-  return new Promise((resolve) => {
-    // Simulate text extraction with progress updates
-    const totalPages = Math.floor(file.size / 3000); // Mock estimation
+  try {
+    // Convert File object to ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
+    
+    // Load the PDF document
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const totalPages = pdf.numPages;
     const pageTexts: string[] = [];
     
-    let processedPages = 0;
-    const interval = setInterval(() => {
-      // Generate some mock text for the current page
-      const pageNumber = processedPages + 1;
+    // Extract text from each page
+    for (let i = 1; i <= totalPages; i++) {
+      // Update progress
+      progressCallback((i / totalPages) * 100);
       
-      // Using more realistic content instead of placeholder text
-      const mockText = `This is actual extracted content from page ${pageNumber}. It contains paragraphs, sentences, and information from the PDF document. There might be headings, bullet points, or other formatted text depending on the PDF content. This text represents what would be extracted from the actual PDF document using a real PDF parsing library.`;
+      // Get page
+      const page = await pdf.getPage(i);
       
-      pageTexts.push(mockText);
-      processedPages++;
+      // Extract text content
+      const textContent = await page.getTextContent();
+      let pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
       
-      progressCallback((processedPages / totalPages) * 100);
-      
-      if (processedPages >= totalPages) {
-        clearInterval(interval);
-        resolve(pageTexts);
+      // If page is empty, add a note
+      if (!pageText.trim()) {
+        pageText = '[This page appears to be empty or contains only images]';
       }
-    }, 100);
-  });
+      
+      pageTexts.push(pageText);
+    }
+    
+    return pageTexts;
+  } catch (error) {
+    console.error('Error extracting text from PDF:', error);
+    throw new Error('Failed to extract text from PDF');
+  }
 }
 
 /**

@@ -4,7 +4,7 @@ import { toast } from "@/components/ui/use-toast";
 import FileUpload from "@/components/FileUpload";
 import { extractTextFromPdf, groupPagesIntoCells } from "@/lib/pdfUtils";
 import { savePdfExtraction } from "@/lib/supabase";
-import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsLib from "@/lib/pdfJsConfig";
 
 interface PDFUploadSectionProps {
   file: File | null;
@@ -46,8 +46,16 @@ const PDFUploadSection = ({
     setFile(selectedFile);
     
     try {
+      // Load the PDF document using the updated pdf.js configuration
       const arrayBuffer = await selectedFile.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      
+      // Add error handling for the loading task
+      loadingTask.onProgress = (progress) => {
+        console.log(`Loading PDF: ${progress.loaded}/${progress.total}`);
+      };
+      
+      const pdf = await loadingTask.promise;
       const numPages = pdf.numPages;
       
       setTotalPages(numPages);
@@ -60,10 +68,12 @@ const PDFUploadSection = ({
       toast({
         variant: "destructive",
         title: "Error analyzing PDF",
-        description: "Could not determine page count",
+        description: "Could not determine page count. Please try another PDF file.",
       });
-      const estimatedPages = Math.floor(selectedFile.size / 3000);
-      setTotalPages(estimatedPages);
+      // Reset file selection on error
+      setFile(null);
+      setPreviewUrl(null);
+      setTotalPages(0);
     }
   };
 
@@ -74,18 +84,32 @@ const PDFUploadSection = ({
     setProgress(0);
     
     try {
+      // Add more detailed logging
+      console.log("Starting PDF processing...");
+      
       const pageTexts = await extractTextFromPdf(file, (progress) => {
         setProgress(progress / 2);
+        console.log(`Extraction progress: ${progress}%`);
       });
+      
+      console.log(`Extracted ${pageTexts.length} pages of text`);
       
       const cellTexts = groupPagesIntoCells(pageTexts);
       setProcessedCellTexts(cellTexts);
       
       setProgress(75);
       
-      const savedExtraction = await savePdfExtraction(file.name, pageTexts);
-      if (savedExtraction?.id) {
-        setExtractionId(savedExtraction.id);
+      // Attempt to save to Supabase if DB is connected
+      try {
+        const savedExtraction = await savePdfExtraction(file.name, pageTexts);
+        if (savedExtraction?.id) {
+          setExtractionId(savedExtraction.id);
+          console.log(`Saved extraction with ID: ${savedExtraction.id}`);
+        } else {
+          console.warn("Extraction was processed but not saved to database");
+        }
+      } catch (dbError) {
+        console.warn("Could not save to database, but PDF was processed", dbError);
       }
       
       setProgress(100);
@@ -99,10 +123,11 @@ const PDFUploadSection = ({
     } catch (error) {
       console.error("Error processing PDF:", error);
       setIsProcessing(false);
+      setProgress(0);
       toast({
         variant: "destructive",
         title: "Processing failed",
-        description: "There was an error processing your PDF.",
+        description: "There was an error processing your PDF. Please try another file.",
       });
     }
   };
@@ -128,7 +153,7 @@ const PDFUploadSection = ({
             disabled={isProcessing || totalPages === 0}
             className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            Start Processing
+            {isProcessing ? "Processing..." : "Start Processing"}
           </button>
         </div>
       )}

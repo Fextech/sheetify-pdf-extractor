@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { toast } from "@/components/ui/use-toast";
 import FileUpload from "@/components/FileUpload";
@@ -44,11 +43,12 @@ const PDFUploadSection = ({
     const url = URL.createObjectURL(selectedFile);
     setPreviewUrl(url);
     setFile(selectedFile);
-    
+    setIsProcessing(true);
+
     try {
       console.log("Loading PDF to get page count...");
-      // Use the same PDF.js configuration as in extractTextFromPdf
       const arrayBuffer = await selectedFile.arrayBuffer();
+      
       const loadingTask = pdfjsLib.getDocument({
         data: arrayBuffer,
         cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/cmaps/',
@@ -56,30 +56,41 @@ const PDFUploadSection = ({
         standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/standard_fonts/',
       });
       
-      // Add progress callback
       loadingTask.onProgress = (progress) => {
-        console.log(`Loading PDF: ${Math.round((progress.loaded / (progress.total || 1)) * 100)}%`);
+        const percent = progress.total ? Math.round((progress.loaded / progress.total) * 100) : 0;
+        console.log(`Loading PDF: ${percent}%`);
+        setProgress(percent / 4);
       };
       
       const pdf = await loadingTask.promise;
       const numPages = pdf.numPages;
       
       setTotalPages(numPages);
+      setIsProcessing(false);
+      setProgress(0);
+      
       toast({
         title: "PDF Loaded",
         description: `PDF has ${numPages} pages`,
       });
     } catch (error) {
       console.error("Error getting PDF page count:", error);
+      let errorMessage = "Could not determine page count. Please try another PDF file.";
+      
+      if (error instanceof Error && error.message.includes('worker')) {
+        errorMessage = "PDF worker failed to load. Please check your internet connection and try again.";
+      }
+      
       toast({
         variant: "destructive",
         title: "Error analyzing PDF",
-        description: "Could not determine page count. Please try another PDF file.",
+        description: errorMessage,
       });
-      // Reset file selection on error
+      
       setFile(null);
       setPreviewUrl(null);
       setTotalPages(0);
+      setIsProcessing(false);
     }
   };
 
@@ -90,7 +101,6 @@ const PDFUploadSection = ({
     setProgress(0);
     
     try {
-      // Add more detailed logging
       console.log("Starting PDF processing...");
       
       const pageTexts = await extractTextFromPdf(file, (progress) => {
@@ -105,7 +115,6 @@ const PDFUploadSection = ({
       
       setProgress(75);
       
-      // Attempt to save to Supabase if DB is connected
       try {
         const savedExtraction = await savePdfExtraction(file.name, pageTexts);
         if (savedExtraction?.id) {

@@ -19,6 +19,7 @@ export async function extractTextFromPdf(
     // Create loading task with better error handling
     const loadingTask = pdfjsLib.getDocument({
       data: arrayBuffer,
+      // We'll still include these options for better PDF compatibility
       cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/cmaps/',
       cMapPacked: true,
       standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/standard_fonts/',
@@ -28,6 +29,7 @@ export async function extractTextFromPdf(
     loadingTask.onProgress = (progress) => {
       const percent = progress.total ? Math.round((progress.loaded / progress.total) * 20) : 0;
       progressCallback(percent);
+      console.log(`PDF loading progress: ${percent}%`);
     };
     
     // Load the PDF document

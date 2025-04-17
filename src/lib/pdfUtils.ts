@@ -20,9 +20,9 @@ export async function extractTextFromPdf(
     const loadingTask = pdfjsLib.getDocument({
       data: arrayBuffer,
       // We'll still include these options for better PDF compatibility
-      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/cmaps/',
+      cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
       cMapPacked: true,
-      standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/standard_fonts/',
+      standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/standard_fonts/`,
     });
     
     // Add progress callback to the loading task

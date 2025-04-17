@@ -1,16 +1,10 @@
 
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure worker - use a more reliable approach by creating a local worker
-// Instead of using CDN which can be unreliable
-const pdfjsWorker = await import('pdfjs-dist/build/pdf.worker.mjs');
+// Configure worker path correctly
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
 
-if (typeof window !== 'undefined' && 'pdfjsWorker' in window === false) {
-  // @ts-ignore
-  window.pdfjsWorker = pdfjsWorker;
-}
-
-// Set worker source manually instead of relying on CDN
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+// Ensure the PDF.js library is properly configured
+console.log("PDF.js worker configured with version:", pdfjsLib.version);
 
 export default pdfjsLib;

@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { toast } from "@/components/ui/use-toast";
 import FileUpload from "@/components/FileUpload";
@@ -51,9 +52,9 @@ const PDFUploadSection = ({
       
       const loadingTask = pdfjsLib.getDocument({
         data: arrayBuffer,
-        cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/cmaps/',
+        cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
         cMapPacked: true,
-        standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/standard_fonts/',
+        standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/standard_fonts/`,
       });
       
       loadingTask.onProgress = (progress) => {
@@ -77,8 +78,11 @@ const PDFUploadSection = ({
       console.error("Error getting PDF page count:", error);
       let errorMessage = "Could not determine page count. Please try another PDF file.";
       
-      if (error instanceof Error && error.message.includes('worker')) {
-        errorMessage = "PDF worker failed to load. Please check your internet connection and try again.";
+      if (error instanceof Error) {
+        console.error("Error details:", error.message);
+        if (error.message.includes('worker')) {
+          errorMessage = "PDF worker failed to load. Please check your internet connection and try again.";
+        }
       }
       
       toast({
